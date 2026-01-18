@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>共學家教排程系統 | Tutor Connect</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f5f5f4; /* Stone 100 */
+        }
+
+        /* Chart Container Styling per requirements */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+
+        /* Custom Scrollbar for list areas */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #e7e5e4;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #a8a29e;
+            border-radius: 3px;
+        }
+
+        /* Tab transition */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .calendar-day {
+            min-height: 100px;
+        }
+        @media (max-width: 768px) {
+            .calendar-day {
+                min-height: 80px;
+            }
+        }
+    </style>
+    <!-- Chosen Palette: Warm Neutrals (Stone, Warm Gray, Muted Orange, Sage Green) -->
+    <!-- Application Structure Plan: 
+         1. Dashboard/Calendar (Public View): The central hub showing approved classes and school events.
+         2. Tutor Portal (Input): A dedicated section for teachers to submit "Pending" requests.
+         3. Admin Portal (Control): The verification layer where the user approves/rejects requests.
+         4. Analytics: A simple visual breakdown of class types.
+         Rationale: This structure separates concerns (Input vs. View vs. Control) while keeping everything on one accessible page.
+    -->
+    <!-- Visualization & Content Choices:
+         1. Calendar Grid (HTML/JS): Main visualization of time.
+         2. Doughnut Chart (Chart.js): Shows the ratio of Art/Drums/English classes (Goal: Inform/Compare).
+         3. Status lists (HTML/JS): Color-coded lists for pending vs. approved items.
+         4. Unicode Icons: Used instead of SVG for lightweight visual cues.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="text-stone-800">
+
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b border-stone-200 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-2">
+                    <span class="text-2xl">📅</span>
+                    <h1 class="font-bold text-xl tracking-tight text-stone-700">共學排程系統 <span class="text-sm font-normal text-stone-500">| 整合南科實小行事曆</span></h1>
+                </div>
+                <div class="hidden md:flex space-x-4">
+                    <button onclick="switchTab('view-calendar')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-stone-900 bg-stone-100 hover:bg-stone-200 transition">行事曆總覽</button>
+                    <button onclick="switchTab('view-tutor')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100 transition">老師填寫區</button>
+                    <button onclick="switchTab('view-admin')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100 transition">管理員審核</button>
+                </div>
+                <!-- Mobile Menu Button (Simplified for prototype) -->
+                <div class="md:hidden">
+                    <button onclick="toggleMobileMenu()" class="text-stone-600 focus:outline-none">☰</button>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile Menu Dropdown -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-b border-stone-200">
+            <button onclick="switchTab('view-calendar')" class="block w-full text-left px-4 py-2 text-stone-700 hover:bg-stone-100">行事曆總覽</button>
+            <button onclick="switchTab('view-tutor')" class="block w-full text-left px-4 py-2 text-stone-700 hover:bg-stone-100">老師填寫區</button>
+            <button onclick="switchTab('view-admin')" class="block w-full text-left px-4 py-2 text-stone-700 hover:bg-stone-100">管理員審核</button>
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="max-w-6xl mx-auto px-4 py-8">
+
+        <!-- VIEW 1: CALENDAR & DASHBOARD -->
+        <div id="view-calendar" class="tab-content active">
+            
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-stone-800 mb-2">本月課程與學校行程</h2>
+                <p class="text-stone-600 leading-relaxed">
+                    這是所有已確認課程的公開頁面。包含英文、爵士鼓與美術課，並整合了南科實小的重大活動以避免衝突。<br>
+                    <span class="inline-block mt-2 text-sm bg-orange-100 text-orange-800 px-2 py-1 rounded">🏫 學校活動</span>
+                    <span class="inline-block mt-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">🇺🇸 英文</span>
+                    <span class="inline-block mt-2 text-sm bg-purple-100 text-purple-800 px-2 py-1 rounded">🥁 爵士鼓</span>
+                    <span class="inline-block mt-2 text-sm bg-emerald-100 text-emerald-800 px-2 py-1 rounded">🎨 美術</span>
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- Calendar Section -->
+                <div class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+                    <div class="flex justify-between items-center p-4 bg-stone-50 border-b border-stone-200">
+                        <button onclick="changeMonth(-1)" class="p-2 hover:bg-stone-200 rounded-full transition">⬅️</button>
+                        <h3 id="calendar-title" class="text-lg font-bold text-stone-700">2026年 1月</h3>
+                        <button onclick="changeMonth(1)" class="p-2 hover:bg-stone-200 rounded-full transition">➡️</button>
+                    </div>
+                    
+                    <!-- Weekday Headers -->
+                    <div class="grid grid-cols-7 border-b border-stone-200 bg-stone-50">
+                        <div class="py-2 text-center text-xs font-bold text-stone-500">日</div>
+                        <div class="py-2 text-center text-xs font-bold text-stone-500">一</div>
+                        <div class="py-2 text-center text-xs font-bold text-stone-500">二</div>
+                        <div class="py-2 text-center text-xs font-bold text-stone-500">三</div>
+                        <div class="py-2 text-center text-xs font-bold text-stone-500">四</div>
+                        <div class="py-2 text-center text-xs font-bold text-stone-500">五</div>
+                        <div class="py-2 text-center text-xs font-bold text-stone-500">六</div>
+                    </div>
+
+                    <!-- Calendar Grid -->
+                    <div id="calendar-grid" class="grid grid-cols-7 bg-white">
+                        <!-- JS generates days here -->
+                    </div>
+                </div>
+
+                <!-- Info/Stats Section -->
+                <div class="lg:col-span-1 space-y-6">
+                    <!-- Analytics Chart -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-stone-200">
+                        <h3 class="text-sm font-bold text-stone-500 uppercase mb-4 tracking-wider">課程分佈概況</h3>
+                        <div class="chart-container">
+                            <canvas id="classTypeChart"></canvas>
+                        </div>
+                        <p class="text-xs text-stone-400 mt-2 text-center">統計本月已確認之課程比例</p>
+                    </div>
+
+                    <!-- Upcoming List -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-stone-200">
+                        <h3 class="text-sm font-bold text-stone-500 uppercase mb-4 tracking-wider">即將到來的課程</h3>
+                        <div id="upcoming-list" class="space-y-3 max-h-64 overflow-y-auto custom-scroll">
+                            <!-- JS populated -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: TUTOR PORTAL -->
+        <div id="view-tutor" class="tab-content">
+            <div class="max-w-2xl mx-auto">
+                <div class="mb-8 text-center">
+                    <h2 class="text-3xl font-bold text-stone-800 mb-3">老師課程登記</h2>
+                    <p class="text-stone-600">
+                        請填寫下方表單以新增課程。注意：您的課程在送出後會進入<span class="font-bold text-orange-600">「待審核」</span>狀態，需等待管理員確認後才會顯示於行事曆上。
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-md border border-stone-200 p-6 md:p-8">
+                    <form id="class-form" onsubmit="handleTutorSubmit(event)">
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-stone-700 mb-2">我是...</label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="teacherType" value="English" class="peer sr-only" checked>
+                                    <div class="text-center p-3 border border-stone-200 rounded-lg peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition hover:bg-stone-50">
+                                        <div class="text-xl mb-1">🇺🇸</div>
+                                        <div class="text-sm font-bold">英文老師</div>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="teacherType" value="Drums" class="peer sr-only">
+                                    <div class="text-center p-3 border border-stone-200 rounded-lg peer-checked:bg-purple-50 peer-checked:border-purple-500 peer-checked:text-purple-700 transition hover:bg-stone-50">
+                                        <div class="text-xl mb-1">🥁</div>
+                                        <div class="text-sm font-bold">爵士鼓老師</div>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="teacherType" value="Art" class="peer sr-only">
+                                    <div class="text-center p-3 border border-stone-200 rounded-lg peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 transition hover:bg-stone-50">
+                                        <div class="text-xl mb-1">🎨</div>
+                                        <div class="text-sm font-bold">美術老師</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <label for="classDate" class="block text-sm font-medium text-stone-700 mb-2">上課日期</label>
+                                <input type="date" id="classDate" required class="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-stone-400 outline-none transition">
+                            </div>
+                            <div>
+                                <label for="classTime" class="block text-sm font-medium text-stone-700 mb-2">開始時間</label>
+                                <input type="time" id="classTime" required class="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-stone-400 outline-none transition">
+                            </div>
+                        </div>
+
+                        <div class="mb-8">
+                            <label for="classSubject" class="block text-sm font-medium text-stone-700 mb-2">課程主旨 / 內容摘要</label>
+                            <input type="text" id="classSubject" placeholder="例如：Unit 5 複習、水彩基礎技法..." required class="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-stone-400 outline-none transition">
+                            <p class="text-xs text-stone-500 mt-2">請簡短說明本次上課重點。</p>
+                        </div>
+
+                        <button type="submit" class="w-full bg-stone-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-stone-700 transform active:scale-95 transition shadow-lg">
+                            送出課程申請
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Conflict Alert Area -->
+                <div id="conflict-alert" class="hidden mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg flex items-start space-x-3">
+                    <span class="text-orange-600 text-xl">⚠️</span>
+                    <div>
+                        <h4 class="font-bold text-orange-800">注意：日期衝突提示</h4>
+                        <p class="text-sm text-orange-700 mt-1">您選擇的日期當天學校有活動：<span id="conflict-event-name" class="font-bold"></span>。請確認時間是否允許。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 3: ADMIN PORTAL -->
+        <div id="view-admin" class="tab-content">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-stone-800">管理員審核台</h2>
+                    <p class="text-stone-600">此處列出老師提交的所有請求。您確認後，課程才會正式排入行事曆。</p>
+                </div>
+                <div class="bg-stone-100 px-4 py-2 rounded-lg text-sm font-medium text-stone-600">
+                    待審核項目: <span id="pending-count" class="text-orange-600 font-bold text-lg">0</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6">
+                <!-- Pending List -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+                    <div class="bg-orange-50 px-6 py-4 border-b border-orange-100">
+                        <h3 class="font-bold text-orange-800 flex items-center">
+                            <span class="mr-2">⏳</span> 待審核課程
+                        </h3>
+                    </div>
+                    <div id="admin-pending-list" class="divide-y divide-stone-100">
+                        <!-- Populated by JS -->
+                        <div class="p-8 text-center text-stone-400 italic" id="empty-pending-msg">目前沒有待審核的課程</div>
+                    </div>
+                </div>
+
+                <!-- Approved List (History) -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden opacity-80">
+                    <div class="bg-stone-50 px-6 py-4 border-b border-stone-200">
+                        <h3 class="font-bold text-stone-600 flex items-center">
+                            <span class="mr-2">✅</span> 最近已確認課程
+                        </h3>
+                    </div>
+                    <div id="admin-approved-list" class="divide-y divide-stone-100 max-h-60 overflow-y-auto custom-scroll">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- DATA STATE MANAGEMENT ---
+        
+        // Mocking Nanke Experimental Elementary School Data (2026 Sample)
+        const schoolEvents = [
+            { id: 's1', date: '2026-01-20', title: '結業式', type: 'school' },
+            { id: 's2', date: '2026-01-21', title: '寒假開始', type: 'school' },
+            { id: 's3', date: '2026-02-11', title: '開學日', type: 'school' },
+            { id: 's4', date: '2026-02-28', title: '和平紀念日', type: 'school' },
+            { id: 's5', date: '2026-04-03', title: '兒童節活動', type: 'school' },
+            { id: 's6', date: '2026-01-14', title: '期末考(1)', type: 'school' },
+            { id: 's7', date: '2026-01-15', title: '期末考(2)', type: 'school' },
+        ];
+
+        // Core Data: Classes
+        let classes = [
+            { id: 1, type: 'English', teacher: 'Teacher Alex', date: '2026-01-12', time: '18:00', subject: 'Unit 4 Vocabulary', status: 'approved' },
+            { id: 2, type: 'Drums', teacher: 'Drummer Mike', date: '2026-01-14', time: '19:30', subject: 'Basic Rhythm L2', status: 'approved' },
+            { id: 3, type: 'Art', teacher: 'Ms. Lin', date: '2026-01-18', time: '14:00', subject: 'Sketching Basics', status: 'pending' },
+            { id: 4, type: 'English', teacher: 'Teacher Alex', date: '2026-01-22', time: '18:00', subject: 'Reading Comprehension', status: 'approved' },
+        ];
+
+        // State for Calendar View
+        let currentDate = new Date(2026, 0, 1); // Start at Jan 2026
+        
+        // --- DOM ELEMENTS ---
+        const calendarGrid = document.getElementById('calendar-grid');
+        const calendarTitle = document.getElementById('calendar-title');
+        const upcomingList = document.getElementById('upcoming-list');
+        const pendingListEl = document.getElementById('admin-pending-list');
+        const approvedListEl = document.getElementById('admin-approved-list');
+        const pendingCountEl = document.getElementById('pending-count');
+        const conflictAlert = document.getElementById('conflict-alert');
+        const conflictName = document.getElementById('conflict-event-name');
+
+        // --- CHART CONFIGURATION ---
+        let chartInstance = null;
+
+        function initChart() {
+            const ctx = document.getElementById('classTypeChart').getContext('2d');
+            
+            // Calculate data
+            const approved = classes.filter(c => c.status === 'approved');
+            const engCount = approved.filter(c => c.type === 'English').length;
+            const drumCount = approved.filter(c => c.type === 'Drums').length;
+            const artCount = approved.filter(c => c.type === 'Art').length;
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['英文', '爵士鼓', '美術'],
+                    datasets: [{
+                        data: [engCount, drumCount, artCount],
+                        backgroundColor: [
+                            '#bfdbfe', // Blue 200
+                            '#e9d5ff', // Purple 200
+                            '#a7f3d0'  // Emerald 200
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15,
+                                font: { family: "'Noto Sans TC', sans-serif" }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- CORE FUNCTIONS ---
+
+        // 1. Navigation Logic
+        function switchTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            // Show selected
+            document.getElementById(tabId).classList.add('active');
+            
+            // Re-render specific components if needed
+            if(tabId === 'view-calendar') {
+                renderCalendar();
+                initChart();
+            } else if (tabId === 'view-admin') {
+                renderAdminPanel();
+            }
+
+            // Mobile menu close logic
+            document.getElementById('mobile-menu').classList.add('hidden');
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        }
+
+        // 2. Calendar Logic
+        function renderCalendar() {
+            calendarGrid.innerHTML = '';
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+
+            calendarTitle.innerText = `${year}年 ${month + 1}月`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // Empty slots for days before start of month
+            for (let i = 0; i < firstDay; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'border-b border-r border-stone-100 bg-stone-50/30 min-h-[100px]';
+                calendarGrid.appendChild(emptyCell);
+            }
+
+            // Days
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('div');
+                cell.className = 'calendar-day border-b border-r border-stone-100 p-2 relative hover:bg-stone-50 transition bg-white';
+                
+                // Date Number
+                const dateNum = document.createElement('div');
+                dateNum.className = 'text-sm font-semibold text-stone-400 mb-1';
+                dateNum.innerText = day;
+                cell.appendChild(dateNum);
+
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                // A. Check for School Events
+                const sEvent = schoolEvents.find(e => e.date === dateStr);
+                if (sEvent) {
+                    const el = document.createElement('div');
+                    el.className = 'text-xs bg-orange-100 text-orange-800 rounded px-1 py-0.5 mb-1 truncate font-medium';
+                    el.title = sEvent.title;
+                    el.innerText = `🏫 ${sEvent.title}`;
+                    cell.appendChild(el);
+                    cell.classList.add('bg-orange-50/30'); // Highlight school event days slightly
+                }
+
+                // B. Check for Approved Classes
+                const dayClasses = classes.filter(c => c.date === dateStr && c.status === 'approved');
+                dayClasses.forEach(c => {
+                    const el = document.createElement('div');
+                    let colorClass = '';
+                    let icon = '';
+                    
+                    if (c.type === 'English') { colorClass = 'bg-blue-100 text-blue-800'; icon='🇺🇸'; }
+                    else if (c.type === 'Drums') { colorClass = 'bg-purple-100 text-purple-800'; icon='🥁'; }
+                    else if (c.type === 'Art') { colorClass = 'bg-emerald-100 text-emerald-800'; icon='🎨'; }
+
+                    el.className = `text-xs ${colorClass} rounded px-1 py-0.5 mb-1 cursor-pointer hover:opacity-80 transition`;
+                    el.title = `${c.time} - ${c.subject}`;
+                    el.innerHTML = `<div class="font-bold">${c.time}</div><div class="truncate">${icon} ${c.subject}</div>`;
+                    
+                    // Simple interaction: Alert details
+                    el.onclick = () => alert(`課程詳情:\n\n時間: ${c.time}\n老師: ${c.teacher}\n主旨: ${c.subject}\n狀態: 已確認`);
+                    
+                    cell.appendChild(el);
+                });
+
+                calendarGrid.appendChild(cell);
+            }
+
+            renderUpcoming();
+        }
+
+        function changeMonth(offset) {
+            currentDate.setMonth(currentDate.getMonth() + offset);
+            renderCalendar();
+        }
+
+        // 3. Upcoming List Logic
+        function renderUpcoming() {
+            upcomingList.innerHTML = '';
+            // Filter future approved classes, sort by date
+            const todayStr = new Date().toISOString().split('T')[0];
+            const upcoming = classes
+                .filter(c => c.status === 'approved' && c.date >= todayStr)
+                .sort((a, b) => new Date(a.date) - new Date(b.date))
+                .slice(0, 5); // Take top 5
+
+            if (upcoming.length === 0) {
+                upcomingList.innerHTML = '<div class="text-stone-400 text-xs text-center py-4">近期無課程</div>';
+                return;
+            }
+
+            upcoming.forEach(c => {
+                let badgeColor = c.type === 'English' ? 'bg-blue-100 text-blue-800' : (c.type === 'Drums' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800');
+                const item = document.createElement('div');
+                item.className = 'flex items-center space-x-3 text-sm p-2 hover:bg-stone-50 rounded transition';
+                item.innerHTML = `
+                    <div class="flex-shrink-0 w-12 text-center bg-stone-100 rounded p-1">
+                        <div class="font-bold text-stone-600">${c.date.split('-')[1]}/${c.date.split('-')[2]}</div>
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <div class="font-medium text-stone-800 truncate">${c.subject}</div>
+                        <div class="text-xs text-stone-500">${c.time} | ${c.teacher}</div>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded ${badgeColor} font-bold">${c.type}</span>
+                `;
+                upcomingList.appendChild(item);
+            });
+        }
+
+        // 4. Tutor Form Logic
+        document.getElementById('classDate').addEventListener('change', function(e) {
+            const date = e.target.value;
+            const conflict = schoolEvents.find(ev => ev.date === date);
+            if (conflict) {
+                conflictAlert.classList.remove('hidden');
+                conflictName.innerText = conflict.title;
+            } else {
+                conflictAlert.classList.add('hidden');
+            }
+        });
+
+        function handleTutorSubmit(e) {
+            e.preventDefault();
+            const type = document.querySelector('input[name="teacherType"]:checked').value;
+            const date = document.getElementById('classDate').value;
+            const time = document.getElementById('classTime').value;
+            const subject = document.getElementById('classSubject').value;
+
+            // Generate Teacher Name based on type (Mocking login)
+            let teacherName = 'Teacher';
+            if (type === 'English') teacherName = 'Teacher Alex';
+            else if (type === 'Drums') teacherName = 'Drummer Mike';
+            else teacherName = 'Ms. Lin';
+
+            const newClass = {
+                id: Date.now(),
+                type,
+                teacher: teacherName,
+                date,
+                time,
+                subject,
+                status: 'pending'
+            };
+
+            classes.push(newClass);
+            
+            // Reset form and Feedback
+            e.target.reset();
+            conflictAlert.classList.add('hidden');
+            alert('✅ 申請已送出！\n\n您的課程已進入「待審核」列表。請等待管理員確認後，該課程才會顯示在行事曆上。');
+            
+            // Update counts immediately
+            renderAdminPanel();
+            switchTab('view-calendar'); // Auto switch back to calendar (optional UX choice)
+        }
+
+        // 5. Admin Panel Logic
+        function renderAdminPanel() {
+            pendingListEl.innerHTML = '';
+            approvedListEl.innerHTML = '';
+            
+            const pending = classes.filter(c => c.status === 'pending');
+            const approved = classes.filter(c => c.status === 'approved').sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            pendingCountEl.innerText = pending.length;
+            document.getElementById('empty-pending-msg').style.display = pending.length === 0 ? 'block' : 'none';
+
+            // Render Pending
+            pending.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center hover:bg-stone-50 transition';
+                div.innerHTML = `
+                    <div class="mb-3 md:mb-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-bold text-lg text-stone-800">${c.date}</span>
+                            <span class="text-stone-500 font-medium">@ ${c.time}</span>
+                            <span class="px-2 py-0.5 rounded text-xs font-bold ${c.type === 'English' ? 'bg-blue-100 text-blue-800' : (c.type === 'Drums' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800')}">${c.type}</span>
+                        </div>
+                        <div class="text-stone-700 font-medium">主旨：${c.subject}</div>
+                        <div class="text-sm text-stone-500">老師：${c.teacher}</div>
+                    </div>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <button onclick="updateStatus(${c.id}, 'approved')" class="flex-1 md:flex-none bg-stone-800 text-white px-4 py-2 rounded hover:bg-stone-700 transition shadow-sm font-medium">✅ 確認排課</button>
+                        <button onclick="deleteClass(${c.id})" class="flex-1 md:flex-none bg-white border border-stone-300 text-stone-600 px-4 py-2 rounded hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition">刪除</button>
+                    </div>
+                `;
+                pendingListEl.appendChild(div);
+            });
+
+            // Render Approved (History)
+            approved.slice(0, 10).forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'p-4 flex justify-between items-center';
+                div.innerHTML = `
+                    <div>
+                        <span class="text-sm font-bold text-stone-700 mr-2">${c.date}</span>
+                        <span class="text-sm text-stone-600">${c.subject}</span>
+                    </div>
+                    <span class="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">已確認</span>
+                `;
+                approvedListEl.appendChild(div);
+            });
+        }
+
+        function updateStatus(id, newStatus) {
+            const idx = classes.findIndex(c => c.id === id);
+            if (idx !== -1) {
+                classes[idx].status = newStatus;
+                renderAdminPanel();
+                initChart(); // Update stats
+                alert(`課程已確認！\n已加入行事曆。`);
+            }
+        }
+
+        function deleteClass(id) {
+            if(confirm('確定要刪除這筆申請嗎？')) {
+                classes = classes.filter(c => c.id !== id);
+                renderAdminPanel();
+            }
+        }
+
+        // --- INITIALIZATION ---
+        window.onload = function() {
+            renderCalendar();
+            initChart();
+            renderUpcoming();
+            renderAdminPanel();
+        };
+
+    </script>
+</body>
+</html>
