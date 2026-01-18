@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>共學家教排程系統 | Tutor Connect</title>
+    <title>共學家教排程系統 | 權限管理版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -60,6 +60,14 @@
         .modal {
             background-color: rgba(0,0,0,0.5);
         }
+
+        /* Disabled state for radio cards */
+        input:disabled + div {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background-color: #e5e5e5;
+            border-color: #d4d4d4;
+        }
     </style>
 </head>
 <body class="text-stone-800 relative">
@@ -70,22 +78,38 @@
             <div class="flex justify-between items-center h-16">
                 <div class="flex items-center space-x-2 cursor-pointer" onclick="switchTab('view-calendar')">
                     <span class="text-2xl">📅</span>
-                    <h1 class="font-bold text-xl tracking-tight text-stone-700">共學排程系統 <span class="text-sm font-normal text-stone-500">| 南科實小 & 國定假日整合</span></h1>
+                    <h1 class="font-bold text-xl tracking-tight text-stone-700 hidden md:block">共學排程系統 <span class="text-sm font-normal text-stone-500">| 權限管理版</span></h1>
+                    <h1 class="font-bold text-lg tracking-tight text-stone-700 md:hidden">共學排程</h1>
                 </div>
-                <div class="hidden md:flex space-x-4">
+                
+                <!-- Nav Links -->
+                <div class="hidden md:flex space-x-2 items-center">
                     <button onclick="switchTab('view-calendar')" id="nav-cal" class="nav-btn px-3 py-2 rounded-md text-sm font-medium bg-stone-100 text-stone-900 transition">行事曆總覽</button>
                     <button onclick="switchTab('view-tutor')" id="nav-tutor" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100 transition">老師填寫區</button>
                     <button onclick="switchTab('view-admin')" id="nav-admin" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100 transition">管理員後台</button>
+                    
+                    <!-- Login/User Status -->
+                    <div id="user-status-area" class="ml-4 pl-4 border-l border-stone-300">
+                        <button onclick="showLoginModal()" class="text-sm bg-stone-800 text-white px-4 py-2 rounded hover:bg-stone-700 transition">登入</button>
+                    </div>
                 </div>
-                <div class="md:hidden">
+
+                <!-- Mobile Menu Button -->
+                <div class="md:hidden flex items-center gap-3">
+                    <span id="mobile-user-label" class="text-xs font-bold text-blue-600"></span>
                     <button onclick="toggleMobileMenu()" class="text-stone-600 focus:outline-none text-2xl">☰</button>
                 </div>
             </div>
         </div>
+        
+        <!-- Mobile Menu Dropdown -->
         <div id="mobile-menu" class="hidden md:hidden bg-white border-b border-stone-200">
             <button onclick="switchTab('view-calendar')" class="block w-full text-left px-4 py-2 text-stone-700 hover:bg-stone-100">行事曆總覽</button>
             <button onclick="switchTab('view-tutor')" class="block w-full text-left px-4 py-2 text-stone-700 hover:bg-stone-100">老師填寫區</button>
             <button onclick="switchTab('view-admin')" class="block w-full text-left px-4 py-2 text-stone-700 hover:bg-stone-100">管理員後台</button>
+            <div id="mobile-auth-section" class="border-t border-stone-100 p-2">
+                <!-- JS populated -->
+            </div>
         </div>
     </nav>
 
@@ -141,39 +165,60 @@
 
         <!-- VIEW 2: TUTOR PORTAL -->
         <div id="view-tutor" class="tab-content">
-            <div class="max-w-2xl mx-auto">
+            <!-- Locked State -->
+            <div id="tutor-locked" class="max-w-xl mx-auto text-center py-20 bg-white rounded-xl shadow-sm border border-stone-200">
+                <div class="text-5xl mb-4">🔒</div>
+                <h2 class="text-2xl font-bold text-stone-800 mb-2">請先登入</h2>
+                <p class="text-stone-500 mb-6">您必須登入後才能進行排課申請。</p>
+                <button onclick="showLoginModal()" class="bg-stone-800 text-white px-8 py-3 rounded-lg font-bold hover:bg-stone-700 shadow-lg transform active:scale-95 transition">
+                    立即登入
+                </button>
+            </div>
+
+            <!-- Form State -->
+            <div id="tutor-form-container" class="max-w-2xl mx-auto hidden">
                 <div class="mb-8 text-center">
-                    <h2 class="text-3xl font-bold text-stone-800 mb-3">老師課程登記</h2>
-                    <p class="text-stone-600">填寫下方表單以新增課程。系統會自動檢測學校活動與國定假日衝突。</p>
+                    <h2 class="text-3xl font-bold text-stone-800 mb-2">老師課程登記</h2>
+                    <p class="text-stone-600">歡迎, <span id="tutor-welcome-name" class="font-bold text-blue-600"></span> 老師。</p>
                 </div>
                 <div class="bg-white rounded-xl shadow-md border border-stone-200 p-6 md:p-8">
                     <form id="class-form" onsubmit="handleTutorSubmit(event)">
+                        
                         <div class="mb-6">
-                            <label class="block text-sm font-medium text-stone-700 mb-2">我是...</label>
+                            <label class="block text-sm font-medium text-stone-700 mb-2">課程類別 (根據權限自動鎖定)</label>
                             <div class="grid grid-cols-3 gap-3">
-                                <label class="cursor-pointer">
-                                    <input type="radio" name="teacherType" value="English" class="peer sr-only" checked>
-                                    <div class="text-center p-3 border border-stone-200 rounded-lg peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition">
+                                <!-- English Option -->
+                                <label class="cursor-pointer relative">
+                                    <input type="radio" name="teacherType" value="English" id="radio-english" class="peer sr-only">
+                                    <div class="text-center p-3 border-2 border-stone-200 rounded-lg peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition">
                                         <div class="text-xl mb-1">🇺🇸</div>
-                                        <div class="text-sm font-bold">英文老師</div>
+                                        <div class="text-sm font-bold">英文</div>
                                     </div>
+                                    <div class="absolute top-1 right-2 text-xs text-stone-400 hidden lock-icon">🔒</div>
                                 </label>
-                                <label class="cursor-pointer">
-                                    <input type="radio" name="teacherType" value="Drums" class="peer sr-only">
-                                    <div class="text-center p-3 border border-stone-200 rounded-lg peer-checked:bg-purple-50 peer-checked:border-purple-500 peer-checked:text-purple-700 transition">
+                                
+                                <!-- Drums Option -->
+                                <label class="cursor-pointer relative">
+                                    <input type="radio" name="teacherType" value="Drums" id="radio-drums" class="peer sr-only">
+                                    <div class="text-center p-3 border-2 border-stone-200 rounded-lg peer-checked:bg-purple-50 peer-checked:border-purple-500 peer-checked:text-purple-700 transition">
                                         <div class="text-xl mb-1">🥁</div>
                                         <div class="text-sm font-bold">爵士鼓</div>
                                     </div>
+                                    <div class="absolute top-1 right-2 text-xs text-stone-400 hidden lock-icon">🔒</div>
                                 </label>
-                                <label class="cursor-pointer">
-                                    <input type="radio" name="teacherType" value="Art" class="peer sr-only">
-                                    <div class="text-center p-3 border border-stone-200 rounded-lg peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 transition">
+
+                                <!-- Art Option -->
+                                <label class="cursor-pointer relative">
+                                    <input type="radio" name="teacherType" value="Art" id="radio-art" class="peer sr-only">
+                                    <div class="text-center p-3 border-2 border-stone-200 rounded-lg peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 transition">
                                         <div class="text-xl mb-1">🎨</div>
-                                        <div class="text-sm font-bold">美術老師</div>
+                                        <div class="text-sm font-bold">美術</div>
                                     </div>
+                                    <div class="absolute top-1 right-2 text-xs text-stone-400 hidden lock-icon">🔒</div>
                                 </label>
                             </div>
                         </div>
+
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             <div>
                                 <label class="block text-sm font-medium text-stone-700 mb-2">上課日期</label>
@@ -192,12 +237,11 @@
                     </form>
                 </div>
                 
-                <!-- Conflict Alert Area -->
                 <div id="conflict-alert" class="hidden mt-6 p-4 rounded-lg flex items-start space-x-3 transition-colors">
                     <span id="conflict-icon" class="text-xl">⚠️</span>
                     <div>
                         <h4 id="conflict-title" class="font-bold">日期衝突提示</h4>
-                        <p class="text-sm mt-1">當天是：<span id="conflict-event-name" class="font-bold"></span>。請確認是否仍要排課。</p>
+                        <p class="text-sm mt-1">當天是：<span id="conflict-event-name" class="font-bold"></span>。</p>
                     </div>
                 </div>
             </div>
@@ -205,40 +249,20 @@
 
         <!-- VIEW 3: ADMIN PORTAL -->
         <div id="view-admin" class="tab-content">
-            
-            <!-- A. Login Screen -->
-            <div id="admin-login-section" class="max-w-md mx-auto mt-10 p-8 bg-white rounded-xl shadow-lg border border-stone-200">
-                <div class="text-center mb-6">
-                    <span class="text-4xl mb-2 block">🔒</span>
-                    <h2 class="text-2xl font-bold text-stone-800">管理員登入</h2>
-                    <p class="text-stone-500 text-sm mt-1">請輸入帳號密碼以進入後台</p>
-                </div>
-                <form onsubmit="handleLogin(event)">
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-stone-700 mb-1">帳號</label>
-                        <input type="text" id="adminUser" class="w-full px-4 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-stone-500 outline-none" placeholder="admin">
-                    </div>
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium text-stone-700 mb-1">密碼</label>
-                        <input type="password" id="adminPass" class="w-full px-4 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-stone-500 outline-none" placeholder="1234">
-                    </div>
-                    <button type="submit" class="w-full bg-stone-800 text-white font-bold py-2 rounded hover:bg-stone-700 transition">登入</button>
-                </form>
-                <div class="mt-4 text-center text-xs text-stone-400 bg-stone-50 p-2 rounded border border-stone-200">
-                    測試帳號：admin / 1234
-                </div>
+            <div id="admin-locked" class="max-w-xl mx-auto text-center py-20 bg-white rounded-xl shadow-sm border border-stone-200">
+                <div class="text-5xl mb-4">🚫</div>
+                <h2 class="text-2xl font-bold text-stone-800 mb-2">權限不足</h2>
+                <p class="text-stone-500">此區域僅限總管理員存取。</p>
             </div>
 
-            <!-- B. Admin Dashboard (Hidden until Login) -->
             <div id="admin-dashboard-section" class="hidden">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                     <div>
                         <h2 class="text-2xl font-bold text-stone-800">後台管理中心</h2>
-                        <p class="text-stone-600">在此審核、編輯或刪除任何課程。</p>
+                        <p class="text-stone-600">管理權限：<span class="font-bold text-blue-600">Super Admin</span></p>
                     </div>
                     <div class="flex items-center gap-4">
                         <span class="bg-stone-100 px-3 py-1 rounded-full text-sm text-stone-600">👤 管理員</span>
-                        <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800 underline font-medium">登出</button>
                     </div>
                 </div>
 
@@ -269,7 +293,63 @@
 
     </main>
 
-    <!-- Edit Modal Overlay -->
+    <!-- Global Login Modal -->
+    <div id="login-modal" class="fixed inset-0 modal hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-8 animate-[fadeIn_0.2s_ease-out]">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-stone-800">系統登入</h3>
+                <button onclick="closeLoginModal()" class="text-stone-400 hover:text-stone-600">✕</button>
+            </div>
+            
+            <form onsubmit="handleGlobalLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-stone-700 mb-1">帳號</label>
+                    <input type="text" id="loginUser" class="w-full px-4 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-stone-500 outline-none" placeholder="輸入帳號">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-stone-700 mb-1">密碼</label>
+                    <input type="password" id="loginPass" class="w-full px-4 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-stone-500 outline-none" placeholder="輸入密碼">
+                </div>
+                <button type="submit" class="w-full bg-stone-800 text-white font-bold py-2 rounded hover:bg-stone-700 transition">登入</button>
+            </form>
+
+            <div class="mt-6 text-xs text-stone-500 bg-stone-50 p-3 rounded border border-stone-200 space-y-1">
+                <p class="font-bold border-b border-stone-200 pb-1 mb-1">測試帳號列表 (帳號/密碼):</p>
+                <div class="flex justify-between"><span>👑 總管:</span> <span>admin / 1234</span></div>
+                <div class="flex justify-between"><span>🇺🇸 英文:</span> <span>eng / 111</span></div>
+                <div class="flex justify-between"><span>🥁 爵士鼓:</span> <span>drum / 222</span></div>
+                <div class="flex justify-between"><span>🎨 美術:</span> <span>art / 333</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="change-password-modal" class="fixed inset-0 modal hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-8 animate-[fadeIn_0.2s_ease-out]">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-stone-800">修改密碼</h3>
+                <button onclick="closeChangePasswordModal()" class="text-stone-400 hover:text-stone-600">✕</button>
+            </div>
+            
+            <form onsubmit="handleSubmitChangePassword(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-stone-700 mb-1">舊密碼</label>
+                    <input type="password" id="old-pass" required class="w-full px-4 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-stone-500 outline-none">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-stone-700 mb-1">新密碼</label>
+                    <input type="password" id="new-pass" required class="w-full px-4 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-stone-500 outline-none">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-stone-700 mb-1">確認新密碼</label>
+                    <input type="password" id="confirm-new-pass" required class="w-full px-4 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-stone-500 outline-none">
+                </div>
+                <button type="submit" class="w-full bg-stone-800 text-white font-bold py-2 rounded hover:bg-stone-700 transition">確認修改</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Class Modal -->
     <div id="edit-modal" class="fixed inset-0 modal hidden z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-[fadeIn_0.2s_ease-out]">
             <h3 class="text-xl font-bold text-stone-800 mb-4">修改課程內容</h3>
@@ -303,22 +383,23 @@
     </div>
 
     <script>
-        // --- DATA & STATE ---
-        
-        // Combined Events Data: School Events + Taiwan Holidays (2026)
-        // type: 'school' (orange), 'holiday' (red)
+        // --- DATA: USERS & PERMISSIONS ---
+        let usersDB = [
+            { username: 'admin', password: '1234', role: 'admin', name: '總管理員', allowedTypes: ['English', 'Drums', 'Art'] },
+            { username: 'eng', password: '111', role: 'teacher', name: 'Alex', allowedTypes: ['English'] },
+            { username: 'drum', password: '222', role: 'teacher', name: 'Mike', allowedTypes: ['Drums'] },
+            { username: 'art', password: '333', role: 'teacher', name: 'Ms. Lin', allowedTypes: ['Art'] }
+        ];
+
         const globalEvents = [
-            // School Events (Mock based on user request)
             { id: 's1', date: '2026-01-20', title: '結業式', type: 'school' },
             { id: 's2', date: '2026-01-21', title: '寒假開始', type: 'school' },
             { id: 's3', date: '2026-02-11', title: '開學日', type: 'school' },
             { id: 's4', date: '2026-01-14', title: '期末考(1)', type: 'school' },
             { id: 's5', date: '2026-01-15', title: '期末考(2)', type: 'school' },
             { id: 's6', date: '2026-04-03', title: '兒童節活動(校)', type: 'school' },
-
-            // Taiwan National Holidays 2026
             { id: 'h1', date: '2026-01-01', title: '元旦', type: 'holiday' },
-            { id: 'h2', date: '2026-02-16', title: '春節連假', type: 'holiday' }, // Eve assumed
+            { id: 'h2', date: '2026-02-16', title: '春節連假', type: 'holiday' },
             { id: 'h3', date: '2026-02-17', title: '春節(初一)', type: 'holiday' },
             { id: 'h4', date: '2026-02-18', title: '春節(初二)', type: 'holiday' },
             { id: 'h5', date: '2026-02-19', title: '春節(初三)', type: 'holiday' },
@@ -326,41 +407,138 @@
             { id: 'h7', date: '2026-02-28', title: '和平紀念日', type: 'holiday' },
             { id: 'h8', date: '2026-04-04', title: '兒童節', type: 'holiday' },
             { id: 'h9', date: '2026-04-05', title: '清明節', type: 'holiday' },
-            { id: 'h10', date: '2026-05-01', title: '勞動節', type: 'holiday' },
-            { id: 'h11', date: '2026-06-19', title: '端午節', type: 'holiday' },
-            { id: 'h12', date: '2026-09-25', title: '中秋節', type: 'holiday' },
-            { id: 'h13', date: '2026-10-10', title: '國慶日', type: 'holiday' },
         ];
 
         let classes = [
-            { id: 1, type: 'English', teacher: 'Teacher Alex', date: '2026-01-12', time: '18:00', subject: 'Unit 4 Vocabulary', status: 'approved' },
-            { id: 2, type: 'Drums', teacher: 'Drummer Mike', date: '2026-01-14', time: '19:30', subject: 'Basic Rhythm L2', status: 'approved' },
+            { id: 1, type: 'English', teacher: 'Alex', date: '2026-01-12', time: '18:00', subject: 'Unit 4 Vocabulary', status: 'approved' },
+            { id: 2, type: 'Drums', teacher: 'Mike', date: '2026-01-14', time: '19:30', subject: 'Basic Rhythm L2', status: 'approved' },
             { id: 3, type: 'Art', teacher: 'Ms. Lin', date: '2026-01-18', time: '14:00', subject: 'Sketching Basics', status: 'pending' },
-            { id: 4, type: 'English', teacher: 'Teacher Alex', date: '2026-01-22', time: '18:00', subject: 'Reading Comprehension', status: 'approved' },
+            { id: 4, type: 'English', teacher: 'Alex', date: '2026-01-22', time: '18:00', subject: 'Reading Comprehension', status: 'approved' },
         ];
 
         let currentDate = new Date(2026, 0, 1);
         let chartInstance = null;
-        let isAdminLoggedIn = false;
+        let currentUser = null;
 
-        // --- DOM REFS ---
         const calendarGrid = document.getElementById('calendar-grid');
         const upcomingList = document.getElementById('upcoming-list');
         const conflictAlert = document.getElementById('conflict-alert');
         const conflictName = document.getElementById('conflict-event-name');
-        const conflictTitle = document.getElementById('conflict-title');
-        const conflictIcon = document.getElementById('conflict-icon');
         
-        // --- CORE FUNCTIONS ---
+        // --- AUTH & CHANGE PASSWORD ---
+        function showLoginModal() { document.getElementById('login-modal').classList.remove('hidden'); }
+        function closeLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
+
+        function handleGlobalLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('loginUser').value;
+            const p = document.getElementById('loginPass').value;
+            const foundUser = usersDB.find(user => user.username === u && user.password === p);
+
+            if (foundUser) {
+                currentUser = foundUser;
+                closeLoginModal();
+                updateUIForUser();
+                alert(`登入成功！歡迎 ${currentUser.name}`);
+            } else {
+                alert('帳號或密碼錯誤');
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            updateUIForUser();
+            switchTab('view-calendar');
+        }
+
+        // --- PASSWORD CHANGE LOGIC ---
+        function showChangePasswordModal() {
+            document.getElementById('change-password-modal').classList.remove('hidden');
+        }
+        function closeChangePasswordModal() {
+            document.getElementById('change-password-modal').classList.add('hidden');
+            document.getElementById('old-pass').value = '';
+            document.getElementById('new-pass').value = '';
+            document.getElementById('confirm-new-pass').value = '';
+        }
+
+        function handleSubmitChangePassword(e) {
+            e.preventDefault();
+            const oldPass = document.getElementById('old-pass').value;
+            const newPass = document.getElementById('new-pass').value;
+            const confirmPass = document.getElementById('confirm-new-pass').value;
+
+            // 1. Check old password
+            if (oldPass !== currentUser.password) {
+                alert('舊密碼錯誤，請重新輸入。');
+                return;
+            }
+
+            // 2. Check new password match
+            if (newPass !== confirmPass) {
+                alert('新密碼與確認密碼不符！');
+                return;
+            }
+
+            // 3. Update Password
+            // In a real app, this sends an API request. Here we update the local object.
+            currentUser.password = newPass;
+            const dbUserIndex = usersDB.findIndex(u => u.username === currentUser.username);
+            if (dbUserIndex !== -1) {
+                usersDB[dbUserIndex].password = newPass;
+            }
+
+            alert('密碼修改成功！(注意：重新整理網頁後會還原為預設值)');
+            closeChangePasswordModal();
+        }
+
+        function updateUIForUser() {
+            const statusArea = document.getElementById('user-status-area');
+            const mobileSection = document.getElementById('mobile-auth-section');
+
+            if (currentUser) {
+                // Desktop Nav
+                statusArea.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <div class="text-xs font-bold text-stone-500">${currentUser.role === 'admin' ? '管理員' : '老師'}</div>
+                            <div class="text-sm font-bold text-stone-800">${currentUser.name}</div>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <button onclick="showChangePasswordModal()" class="text-xs text-stone-500 hover:text-stone-800 underline flex items-center justify-end" title="修改密碼">
+                                🔑 修改密碼
+                            </button>
+                            <button onclick="logout()" class="text-xs text-red-500 hover:text-red-700 underline flex items-center justify-end">
+                                登出
+                            </button>
+                        </div>
+                    </div>
+                `;
+                // Mobile Nav
+                mobileSection.innerHTML = `
+                    <div class="text-center p-2">
+                        <div class="font-bold text-stone-800">Hi, ${currentUser.name}</div>
+                        <div class="text-xs text-stone-500 mb-2">${currentUser.role === 'admin' ? '管理員' : '老師'}</div>
+                        <button onclick="showChangePasswordModal()" class="w-full mb-2 bg-stone-100 text-stone-700 py-2 rounded text-sm">🔑 修改密碼</button>
+                        <button onclick="logout()" class="w-full bg-red-600 text-white py-2 rounded text-sm">登出</button>
+                    </div>
+                `;
+            } else {
+                statusArea.innerHTML = `<button onclick="showLoginModal()" class="text-sm bg-stone-800 text-white px-4 py-2 rounded hover:bg-stone-700 transition">登入</button>`;
+                mobileSection.innerHTML = `<button onclick="showLoginModal()" class="w-full text-center bg-stone-800 text-white py-2 rounded">登入</button>`;
+            }
+
+            // Refresh current view logic
+            const activeTab = document.querySelector('.tab-content.active').id;
+            switchTab(activeTab);
+        }
+
+        // --- NAVIGATION & PERMISSION GUARD ---
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(el => {
-                el.classList.remove('bg-stone-100', 'text-stone-900');
-                el.classList.add('text-stone-600');
-            });
-
-            document.getElementById(tabId).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('bg-stone-100', 'text-stone-900'));
             
+            document.getElementById(tabId).classList.add('active');
             if(tabId === 'view-calendar') document.getElementById('nav-cal').classList.add('bg-stone-100', 'text-stone-900');
             if(tabId === 'view-tutor') document.getElementById('nav-tutor').classList.add('bg-stone-100', 'text-stone-900');
             if(tabId === 'view-admin') document.getElementById('nav-admin').classList.add('bg-stone-100', 'text-stone-900');
@@ -368,48 +546,54 @@
             if(tabId === 'view-calendar') {
                 renderCalendar();
                 initChart();
+            } else if (tabId === 'view-tutor') {
+                if (!currentUser) {
+                    document.getElementById('tutor-locked').classList.remove('hidden');
+                    document.getElementById('tutor-form-container').classList.add('hidden');
+                } else {
+                    document.getElementById('tutor-locked').classList.add('hidden');
+                    document.getElementById('tutor-form-container').classList.remove('hidden');
+                    setupTutorFormPermissions();
+                }
             } else if (tabId === 'view-admin') {
-                if (isAdminLoggedIn) showDashboard(); else showLogin();
+                if (currentUser && currentUser.role === 'admin') {
+                    document.getElementById('admin-locked').classList.add('hidden');
+                    document.getElementById('admin-dashboard-section').classList.remove('hidden');
+                    renderAdminPanel();
+                } else {
+                    document.getElementById('admin-locked').classList.remove('hidden');
+                    document.getElementById('admin-dashboard-section').classList.add('hidden');
+                }
             }
             document.getElementById('mobile-menu').classList.add('hidden');
         }
 
-        function toggleMobileMenu() {
-            document.getElementById('mobile-menu').classList.toggle('hidden');
+        // --- TUTOR FORM ---
+        function setupTutorFormPermissions() {
+            document.getElementById('tutor-welcome-name').innerText = currentUser.name;
+            conflictAlert.classList.add('hidden');
+            const radioEng = document.getElementById('radio-english');
+            const radioDrums = document.getElementById('radio-drums');
+            const radioArt = document.getElementById('radio-art');
+            const radios = [radioEng, radioDrums, radioArt];
+
+            radios.forEach(r => {
+                r.disabled = true;
+                r.checked = false;
+                r.parentNode.querySelector('.lock-icon').classList.remove('hidden');
+            });
+
+            let firstEnabled = null;
+            currentUser.allowedTypes.forEach(type => {
+                if(type === 'English') { radioEng.disabled = false; radioEng.parentNode.querySelector('.lock-icon').classList.add('hidden'); if(!firstEnabled) firstEnabled = radioEng; }
+                if(type === 'Drums') { radioDrums.disabled = false; radioDrums.parentNode.querySelector('.lock-icon').classList.add('hidden'); if(!firstEnabled) firstEnabled = radioDrums; }
+                if(type === 'Art') { radioArt.disabled = false; radioArt.parentNode.querySelector('.lock-icon').classList.add('hidden'); if(!firstEnabled) firstEnabled = radioArt; }
+            });
+
+            if (firstEnabled) firstEnabled.checked = true;
         }
 
-        // --- AUTH LOGIC ---
-        function handleLogin(e) {
-            e.preventDefault();
-            const u = document.getElementById('adminUser').value;
-            const p = document.getElementById('adminPass').value;
-            if (u === 'admin' && p === '1234') {
-                isAdminLoggedIn = true;
-                showDashboard();
-            } else {
-                alert('帳號或密碼錯誤 (提示: admin / 1234)');
-            }
-        }
-
-        function logout() {
-            isAdminLoggedIn = false;
-            document.getElementById('adminUser').value = '';
-            document.getElementById('adminPass').value = '';
-            showLogin();
-        }
-
-        function showLogin() {
-            document.getElementById('admin-login-section').classList.remove('hidden');
-            document.getElementById('admin-dashboard-section').classList.add('hidden');
-        }
-
-        function showDashboard() {
-            document.getElementById('admin-login-section').classList.add('hidden');
-            document.getElementById('admin-dashboard-section').classList.remove('hidden');
-            renderAdminPanel();
-        }
-
-        // --- CALENDAR LOGIC ---
+        // --- CALENDAR ---
         function renderCalendar() {
             calendarGrid.innerHTML = '';
             const year = currentDate.getFullYear();
@@ -429,7 +613,6 @@
                 const cell = document.createElement('div');
                 cell.className = 'calendar-day border-b border-r border-stone-100 p-2 relative hover:bg-stone-50 transition bg-white group';
                 
-                // Colorize weekends
                 const dayOfWeek = new Date(year, month, day).getDay();
                 let dateColor = 'text-stone-400';
                 if(dayOfWeek === 0) dateColor = 'text-red-400';
@@ -438,14 +621,13 @@
                 cell.innerHTML = `<div class="text-sm font-semibold ${dateColor} mb-1">${day}</div>`;
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-                // Events & Holidays
                 const ev = globalEvents.find(e => e.date === dateStr);
                 if (ev) {
                     const el = document.createElement('div');
                     if (ev.type === 'holiday') {
                         el.className = 'text-xs bg-red-100 text-red-800 rounded px-1 py-0.5 mb-1 truncate font-bold';
                         el.innerText = `🎌 ${ev.title}`;
-                        cell.classList.add('bg-red-50/50'); // Slight red tint for holiday cells
+                        cell.classList.add('bg-red-50/50');
                     } else {
                         el.className = 'text-xs bg-orange-100 text-orange-800 rounded px-1 py-0.5 mb-1 truncate font-medium';
                         el.innerText = `🏫 ${ev.title}`;
@@ -454,13 +636,11 @@
                     cell.appendChild(el);
                 }
 
-                // Classes
                 const dayClasses = classes.filter(c => c.date === dateStr && c.status === 'approved');
                 dayClasses.forEach(c => {
                     const el = document.createElement('div');
                     let color = c.type === 'English' ? 'bg-blue-100 text-blue-800' : (c.type === 'Drums' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800');
                     let icon = c.type === 'English' ? '🇺🇸' : (c.type === 'Drums' ? '🥁' : '🎨');
-                    
                     el.className = `text-xs ${color} rounded px-1 py-0.5 mb-1 cursor-pointer hover:opacity-80 transition`;
                     el.innerHTML = `<div class="font-bold">${c.time}</div><div class="truncate">${icon} ${c.subject}</div>`;
                     el.onclick = () => alert(`${c.date}\n${c.time} - ${c.teacher}\n${c.subject}`);
@@ -471,18 +651,13 @@
             renderUpcoming();
         }
 
-        function changeMonth(off) {
-            currentDate.setMonth(currentDate.getMonth() + off);
-            renderCalendar();
-        }
+        function changeMonth(off) { currentDate.setMonth(currentDate.getMonth() + off); renderCalendar(); }
 
         function renderUpcoming() {
             upcomingList.innerHTML = '';
             const todayStr = new Date().toISOString().split('T')[0];
             const upcoming = classes.filter(c => c.status === 'approved' && c.date >= todayStr).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,5);
-            
             if(!upcoming.length) upcomingList.innerHTML = '<div class="text-stone-400 text-xs text-center py-4">無近期課程</div>';
-
             upcoming.forEach(c => {
                 let color = c.type === 'English' ? 'bg-blue-100 text-blue-800' : (c.type === 'Drums' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800');
                 const div = document.createElement('div');
@@ -502,152 +677,102 @@
         function initChart() {
             const ctx = document.getElementById('classTypeChart').getContext('2d');
             const app = classes.filter(c=>c.status==='approved');
-            const data = [
-                app.filter(c=>c.type==='English').length,
-                app.filter(c=>c.type==='Drums').length,
-                app.filter(c=>c.type==='Art').length
-            ];
+            const data = [app.filter(c=>c.type==='English').length, app.filter(c=>c.type==='Drums').length, app.filter(c=>c.type==='Art').length];
             if(chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, {
                 type: 'doughnut',
-                data: {
-                    labels: ['英文','爵士鼓','美術'],
-                    datasets: [{ data: data, backgroundColor: ['#bfdbfe','#e9d5ff','#a7f3d0'], borderWidth: 0 }]
-                },
+                data: { labels: ['英文','爵士鼓','美術'], datasets: [{ data: data, backgroundColor: ['#bfdbfe','#e9d5ff','#a7f3d0'], borderWidth: 0 }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
             });
         }
 
-        // --- TUTOR FORM CONFLICT LOGIC ---
+        // --- SUBMIT ---
         document.getElementById('classDate').addEventListener('change', (e) => {
             const ev = globalEvents.find(x => x.date === e.target.value);
-            
             if(ev) { 
                 conflictAlert.classList.remove('hidden'); 
                 conflictName.innerText = ev.title; 
-                
                 if (ev.type === 'holiday') {
-                    // Strong warning for holidays
                     conflictAlert.className = "mt-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3";
-                    conflictTitle.className = "font-bold text-red-800";
-                    conflictTitle.innerText = "國定假日警告";
-                    conflictIcon.innerText = "⛔";
-                    conflictIcon.className = "text-red-600 text-xl";
+                    document.getElementById('conflict-title').className = "font-bold text-red-800";
+                    document.getElementById('conflict-title').innerText = "國定假日警告";
+                    document.getElementById('conflict-icon').innerText = "⛔";
                 } else {
-                    // Softer warning for school events
                     conflictAlert.className = "mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg flex items-start space-x-3";
-                    conflictTitle.className = "font-bold text-orange-800";
-                    conflictTitle.innerText = "學校活動提示";
-                    conflictIcon.innerText = "⚠️";
-                    conflictIcon.className = "text-orange-600 text-xl";
+                    document.getElementById('conflict-title').className = "font-bold text-orange-800";
+                    document.getElementById('conflict-title').innerText = "學校活動提示";
+                    document.getElementById('conflict-icon').innerText = "⚠️";
                 }
-            } else {
-                conflictAlert.classList.add('hidden');
-            }
+            } else { conflictAlert.classList.add('hidden'); }
         });
 
         function handleTutorSubmit(e) {
             e.preventDefault();
+            if (!currentUser) return;
             const type = document.querySelector('input[name="teacherType"]:checked').value;
-            const teacher = type === 'English' ? 'Teacher Alex' : (type === 'Drums' ? 'Drummer Mike' : 'Ms. Lin');
+            if (!currentUser.allowedTypes.includes(type)) { alert('錯誤：您沒有權限新增此類別的課程'); return; }
             classes.push({
-                id: Date.now(),
-                type, teacher,
-                date: document.getElementById('classDate').value,
-                time: document.getElementById('classTime').value,
-                subject: document.getElementById('classSubject').value,
-                status: 'pending'
+                id: Date.now(), type, teacher: currentUser.name, date: document.getElementById('classDate').value,
+                time: document.getElementById('classTime').value, subject: document.getElementById('classSubject').value, status: 'pending'
             });
             e.target.reset();
-            conflictAlert.classList.add('hidden');
+            setupTutorFormPermissions();
             alert('已送出申請，請等待管理員審核。');
-            renderAdminPanel(); // Background update
         }
 
-        // --- ADMIN PANEL & EDIT LOGIC ---
+        function toggleMobileMenu() { document.getElementById('mobile-menu').classList.toggle('hidden'); }
+
+        // --- ADMIN ---
         function renderAdminPanel() {
             const pendingEl = document.getElementById('admin-pending-list');
             const approvedEl = document.getElementById('admin-approved-list');
-            pendingEl.innerHTML = '';
-            approvedEl.innerHTML = '';
-
+            pendingEl.innerHTML = ''; approvedEl.innerHTML = '';
             const pending = classes.filter(c => c.status === 'pending');
             const approved = classes.filter(c => c.status === 'approved').sort((a,b) => new Date(b.date) - new Date(a.date));
-
             document.getElementById('pending-count').innerText = pending.length;
             if(!pending.length) pendingEl.innerHTML = '<div class="p-8 text-center text-stone-400 italic">無待審核項目</div>';
 
-            // Render Pending
             pending.forEach(c => {
-                // Check if pending date is a holiday/event
                 const conflict = globalEvents.find(e => e.date === c.date);
                 let conflictBadge = '';
                 if(conflict) {
                     const bg = conflict.type === 'holiday' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700';
                     conflictBadge = `<div class="mt-1 text-xs ${bg} px-2 py-1 rounded w-fit">⚠️ 當日: ${conflict.title}</div>`;
                 }
-
                 const div = document.createElement('div');
                 div.className = 'p-4 flex flex-col md:flex-row justify-between items-start md:items-center hover:bg-orange-50/50 transition';
                 div.innerHTML = `
                     <div class="mb-2 md:mb-0">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-stone-800">${c.date}</span>
-                            <span class="text-stone-600">${c.time}</span>
-                            <span class="text-xs bg-stone-200 px-1.5 rounded">${c.teacher}</span>
-                        </div>
-                        <div class="text-stone-700">${c.subject}</div>
-                        ${conflictBadge}
+                        <div class="flex items-center gap-2"><span class="font-bold text-stone-800">${c.date}</span><span class="text-stone-600">${c.time}</span><span class="text-xs bg-stone-200 px-1.5 rounded">${c.teacher}</span></div>
+                        <div class="text-stone-700">${c.subject}</div>${conflictBadge}
                     </div>
                     <div class="flex gap-2">
                         <button onclick="approveClass(${c.id})" class="bg-stone-800 text-white px-3 py-1.5 rounded text-sm hover:bg-stone-700">批准</button>
                         <button onclick="openEditModal(${c.id})" class="bg-stone-200 text-stone-700 px-3 py-1.5 rounded text-sm hover:bg-stone-300">修改</button>
                         <button onclick="deleteClass(${c.id})" class="border border-red-200 text-red-600 px-3 py-1.5 rounded text-sm hover:bg-red-50">刪除</button>
-                    </div>
-                `;
+                    </div>`;
                 pendingEl.appendChild(div);
             });
 
-            // Render Approved
             approved.forEach(c => {
                 const div = document.createElement('div');
                 div.className = 'p-4 flex flex-col md:flex-row justify-between items-center hover:bg-stone-50 transition group';
                 div.innerHTML = `
                     <div class="flex-grow mb-2 md:mb-0">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-stone-700">${c.date}</span>
-                            <span class="text-sm text-stone-500">${c.time}</span>
-                            <span class="text-xs ${c.type==='English'?'text-blue-600 bg-blue-50':(c.type==='Drums'?'text-purple-600 bg-purple-50':'text-emerald-600 bg-emerald-50')} px-2 py-0.5 rounded font-medium">${c.type}</span>
-                        </div>
+                        <div class="flex items-center gap-2"><span class="font-bold text-stone-700">${c.date}</span><span class="text-sm text-stone-500">${c.time}</span><span class="text-xs ${c.type==='English'?'text-blue-600 bg-blue-50':(c.type==='Drums'?'text-purple-600 bg-purple-50':'text-emerald-600 bg-emerald-50')} px-2 py-0.5 rounded font-medium">${c.type}</span></div>
                         <div class="text-stone-600 text-sm mt-1">${c.subject} <span class="text-stone-400">(${c.teacher})</span></div>
                     </div>
                     <div class="flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onclick="openEditModal(${c.id})" class="bg-white border border-stone-300 text-stone-600 px-3 py-1 rounded text-sm hover:bg-stone-100">編輯</button>
                         <button onclick="deleteClass(${c.id})" class="bg-white border border-red-200 text-red-500 px-3 py-1 rounded text-sm hover:bg-red-50">刪除</button>
-                    </div>
-                `;
+                    </div>`;
                 approvedEl.appendChild(div);
             });
         }
 
-        function approveClass(id) {
-            const item = classes.find(c => c.id === id);
-            if(item) {
-                item.status = 'approved';
-                renderAdminPanel();
-                initChart();
-            }
-        }
+        function approveClass(id) { const item = classes.find(c => c.id === id); if(item) { item.status = 'approved'; renderAdminPanel(); initChart(); } }
+        function deleteClass(id) { if(confirm('確定要永久刪除此課程嗎？')) { classes = classes.filter(c => c.id !== id); renderAdminPanel(); initChart(); } }
 
-        function deleteClass(id) {
-            if(confirm('確定要永久刪除此課程嗎？')) {
-                classes = classes.filter(c => c.id !== id);
-                renderAdminPanel();
-                initChart();
-            }
-        }
-
-        // --- MODAL LOGIC ---
         function openEditModal(id) {
             const c = classes.find(x => x.id === id);
             if(!c) return;
@@ -658,11 +783,7 @@
             document.getElementById('edit-status').value = c.status;
             document.getElementById('edit-modal').classList.remove('hidden');
         }
-
-        function closeEditModal() {
-            document.getElementById('edit-modal').classList.add('hidden');
-        }
-
+        function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
         function saveEdit() {
             const id = Number(document.getElementById('edit-id').value);
             const idx = classes.findIndex(x => x.id === id);
@@ -671,20 +792,11 @@
                 classes[idx].time = document.getElementById('edit-time').value;
                 classes[idx].subject = document.getElementById('edit-subject').value;
                 classes[idx].status = document.getElementById('edit-status').value;
-                
-                closeEditModal();
-                renderAdminPanel();
-                initChart();
-                alert('修改已儲存！');
+                closeEditModal(); renderAdminPanel(); initChart(); alert('修改已儲存！');
             }
         }
 
-        // Init
-        window.onload = function() {
-            renderCalendar();
-            initChart();
-            renderUpcoming();
-        }
+        window.onload = function() { renderCalendar(); initChart(); renderUpcoming(); updateUIForUser(); }
     </script>
 </body>
 </html>
